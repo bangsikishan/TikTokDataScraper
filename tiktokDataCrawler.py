@@ -1,4 +1,6 @@
+import re 
 import time
+import selenium
 import urllib.parse
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -9,10 +11,18 @@ from selenium.webdriver.chrome.options import Options
 
 class TikTokScraper:
     USERNAMES = []
+    NAMES = []
+    FOLLOWINGS = []
+    FOLLOWERS = []
+    LIKES = []
+    EMAILS = []
+
+    CHROME_OPTIONS = Options()
+    CHROME_OPTIONS.add_argument("--headless")
 
     URL_ENCODE = urllib.parse.quote("#")
     PATH = Service("D:\TestFolder\chromedriver.exe")
-    URL = f"https://www.tiktok.com/search?q={URL_ENCODE}mrrobot"
+    URL = f"https://www.tiktok.com/search?q={URL_ENCODE}russia"
 
 
     # FUNCTION TO OPEN URL IN BROWSER
@@ -21,51 +31,104 @@ class TikTokScraper:
         driver = webdriver.Chrome(service=self.PATH)
 
         driver.get(self.URL)
-        time.sleep(15)
+        time.sleep(10)
 
         return driver 
 
 
+
     # FUNCTION TO EXTRACT USERNAMES FROM PAGE
-    def get_username(self, driver):
-        source_page = driver.page_source
-
-        time.sleep(2)
-
-        print("[+] Parsing HTML page...")
-        document = BeautifulSoup(source_page, "html.parser")
-
-
-        # FIND ALL THE ANCHOR TAGS IN THE SOURCE PAGE
-        links = document.find_all('a', href=True)
+    def get_account_url(self, driver):
         count = 0
-        for link in links:
-            # GET LINKS FROM A ANCHOR TAG
-            username = link["href"]
+        while True:
+            div = driver.find_element(By.XPATH, "/html/body/div[2]/div[2]/div[2]/div[2]/div[1]/div")
+            anchor_tag = div.find_elements(By.TAG_NAME, "a")
 
-            # CHECK FOR CORRECT URL WITH USERNAME 
-            if username[:2] == "/@":
-                self.USERNAMES.append(username)
+            for link in anchor_tag:
+                account = link.get_attribute("href")
+
+                if account.__contains__("@") and not account.__contains__("video"):
+                    self.USERNAMES.append(account)
+                
                 count += 1
-        
-        # IF CERTAIN AMOUNT OF USERNAMES HAVE BEEN COLLECTED, WRITE TO FILE AND CLOSE, ELSE LOAD MORE
-        if count >= 20:
-            with open("usernames.txt", "w", encoding="utf-8") as file:
-                for user in self.USERNAMES:
-                    file.write("https://www.tiktok.com" + str(user))
-                    file.write("\n\n")
 
-            # CLOSE THE BROWSER
-            print("[+] DONE!")
-            driver.quit()
-        else:
-            print("[+] Loading more results...")
-            button = driver.find_element(By.XPATH, "/html/body/div[2]/div[2]/div[2]/div[2]/div[2]/button")
-            button.click()
-            time.sleep(5)
+            
+            # IF CERTAIN AMOUNT OF USERNAMES HAVE BEEN COLLECTED, WRITE TO FILE AND CLOSE, ELSE LOAD MORE
+            if count >= 10:
+                # BASED ON USERNAME, RUN THIS FUNCTION
+                self.get_additional_info()
+
+                # SAVE TO FILE
+                self.save_to_file()
+
+                # CLOSE THE BROWSER
+                driver.quit()
+                break
+            else:
+                print("[+] Loading more results...")
+                button = driver.find_element(By.XPATH, "/html/body/div[2]/div[2]/div[2]/div[2]/div[2]/button")
+                button.click()
+                self.USERNAMES.clear()
+                time.sleep(5)
+
+    
+
+    # FUNCTION TO GET NAME, NUMBER OF FOLLOWINGS, NUMBER OF FOLLOWERS, LIKES AND EMAIL IF IT EXISTS
+    def get_additional_info(self):
+        i = 0
+        while i < len(self.USERNAMES):
+            # OPENING ANOTHER CHROME BROWSER IN HEADLESS MODE
+            secondary_driver = webdriver.Chrome(options=self.CHROME_OPTIONS, service=self.PATH)
+
+            secondary_driver.get(self.USERNAMES[i])
+            time.sleep(2)
+
+            source_page = secondary_driver.page_source
+
+            soup = BeautifulSoup(source_page, 'html.parser')
+            # name = soup.find("h1", text="Jane Bespala")
+            # print(name.string.parent)
+
+            # SEARCHING FOR NAME
+            print("[+] Searching additional data...")
+            names = soup.find_all(class_="tiktok-qpyus6-H1ShareSubTitle e198b7gd6")
+            for name in names:
+                self.NAMES.append(name.string)
+
+            # SEARCHING FOR FOLLOWING, FOLLOWER AND LIKE
+            follows = soup.find_all(class_="tiktok-xeexlu-DivNumber e1awr0pt1")
+            self.FOLLOWINGS.append(follows[0].strong.string)
+            self.FOLLOWERS.append(follows[1].strong.string)
+            self.LIKES.append(follows[2].strong.string)
+
+            # SEARCHING FOR EMAIL
+            emails = soup.find_all(class_="tiktok-b1wpe9-H2ShareDesc e1awr0pt3")
+            for email in emails:
+                email = re.findall("([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", email.string)
+                if len(email) != 0:
+                    self.EMAILS.append(email)
+                else:
+                    self.EMAILS.append(None)
         
+            secondary_driver.quit()
+            i += 1
+
+
+    # SAVE DETAILS TO FILE
+    def save_to_file(self):
+        print("[+] Saving to file...")
+        with open("usernames.txt", "w", encoding="utf-8") as file:
+            for (name,user,following,follower,like,email) in zip(self.NAMES, self.USERNAMES, self.FOLLOWINGS, self.FOLLOWERS, self.LIKES, self.EMAILS):
+                file.write(str(name) + "\t\t" + str(user) + "\t\t" + str(following) + "\t\t" + str(follower) + "\t\t" + str(like) + "\t\t" + str(email))
+                file.write("\n\n")
+            # for username in self.USERNAMES:
+            #     file.write("https://www.tiktok.com" + str(username))
+            #     file.write("\n")
+
+        print("[+] DONE!")
+
 
 obj = TikTokScraper()
 
 driver = obj.open_url()
-obj.get_username(driver)
+obj.get_account_url(driver)
