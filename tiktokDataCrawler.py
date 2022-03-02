@@ -1,7 +1,7 @@
 import re 
 import time
-import selenium
 import urllib.parse
+import argparse
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -22,15 +22,26 @@ class TikTokScraper:
 
     URL_ENCODE = urllib.parse.quote("#")
     PATH = Service("D:\TestFolder\chromedriver.exe")
-    URL = f"https://www.tiktok.com/search?q={URL_ENCODE}russia"
+
+
+    # FUNCTION TO ACCEPT INPUT AS ARGUMENTS FROM TERMINAL
+    def get_arguments(self):
+        parser = argparse.ArgumentParser(description="Extract account details from TikTok based on hashtag")
+
+        parser.add_argument("-t", dest="hashtag", help="Hashtag to search")
+        parser.add_argument("-c", dest="count", help="Number of results")
+
+        args = parser.parse_args()
+        return args 
+
 
 
     # FUNCTION TO OPEN URL IN BROWSER
-    def open_url(self):
+    def open_url(self, hashtag):
         print("[+] Opening Browser...")
         driver = webdriver.Chrome(service=self.PATH)
 
-        driver.get(self.URL)
+        driver.get(f"https://www.tiktok.com/search?q={self.URL_ENCODE}{hashtag}")
         time.sleep(10)
 
         return driver 
@@ -38,7 +49,7 @@ class TikTokScraper:
 
 
     # FUNCTION TO EXTRACT USERNAMES FROM PAGE
-    def get_account_url(self, driver):
+    def get_account_url(self, driver, number_of_results):
         count = 0
         while True:
             div = driver.find_element(By.XPATH, "/html/body/div[2]/div[2]/div[2]/div[2]/div[1]/div")
@@ -54,7 +65,7 @@ class TikTokScraper:
 
             
             # IF CERTAIN AMOUNT OF USERNAMES HAVE BEEN COLLECTED, WRITE TO FILE AND CLOSE, ELSE LOAD MORE
-            if count >= 10:
+            if count >= int(number_of_results):
                 # BASED ON USERNAME, RUN THIS FUNCTION
                 self.get_additional_info()
 
@@ -106,7 +117,7 @@ class TikTokScraper:
             for email in emails:
                 email = re.findall("([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", email.string)
                 if len(email) != 0:
-                    self.EMAILS.append(email)
+                    self.EMAILS.append(email[0])
                 else:
                     self.EMAILS.append(None)
         
@@ -119,7 +130,7 @@ class TikTokScraper:
         print("[+] Saving to file...")
         with open("usernames.txt", "w", encoding="utf-8") as file:
             for (name,user,following,follower,like,email) in zip(self.NAMES, self.USERNAMES, self.FOLLOWINGS, self.FOLLOWERS, self.LIKES, self.EMAILS):
-                file.write(str(name) + "\t\t" + str(user) + "\t\t" + str(following) + "\t\t" + str(follower) + "\t\t" + str(like) + "\t\t" + str(email))
+                file.write(str(name) + "\t\t\t" + str(user) + "\t\t\t" + str(following) + "\t\t\t" + str(follower) + "\t\t\t" + str(like) + "\t\t\t" + str(email))
                 file.write("\n\n")
             # for username in self.USERNAMES:
             #     file.write("https://www.tiktok.com" + str(username))
@@ -130,5 +141,6 @@ class TikTokScraper:
 
 obj = TikTokScraper()
 
-driver = obj.open_url()
-obj.get_account_url(driver)
+args = obj.get_arguments()
+driver = obj.open_url(args.hashtag)
+obj.get_account_url(driver, args.count) 
