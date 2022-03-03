@@ -97,8 +97,7 @@ class TikTokScraper:
             source_page = secondary_driver.page_source
 
             soup = BeautifulSoup(source_page, 'html.parser')
-            # name = soup.find("h1", text="Jane Bespala")
-            # print(name.string.parent)
+            
 
             # SEARCHING FOR NAME
             print("[+] Searching additional data...")
