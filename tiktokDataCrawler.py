@@ -21,7 +21,7 @@ class TikTokScraper:
     CHROME_OPTIONS.add_argument("--headless")
 
     URL_ENCODE = urllib.parse.quote("#")
-    PATH = Service("D:\TestFolder\chromedriver.exe")
+    PATH = Service("chromedriver.exe")
 
 
     # FUNCTION TO ACCEPT INPUT AS ARGUMENTS FROM TERMINAL
